@@ -109,11 +109,6 @@ class SassBeautifyCommand(sublime_plugin.TextCommand):
         Performs some validation checks on the file to ensure we're working with
         something that we can beautify.
         '''
-        # A file has to be saved so we can get the conversion type from the
-        # file extension.
-        if self.view.file_name() is None:
-            self.error_message('Please save this file before trying to beautify.')
-            return False
 
         # Check the file has the correct extension before beautifying.
         if self.get_type() not in ['sass', 'scss']:
@@ -143,7 +138,7 @@ class SassBeautifyCommand(sublime_plugin.TextCommand):
 
     def restore_end_of_line_comments(self, content):
         def restore(m):
-            return ' ' + m.group(2) + m.group(4);
+            return ' ' + m.group(2) + m.group(4)
 
         # Restore line and block comments at the end of lines that have been pushed to the next line by sass-convert
         content = re.sub('(\s+)(//|/\\*)(---end-of-line-comment---)(.*)', restore, content)
@@ -277,8 +272,11 @@ class SassBeautifyCommand(sublime_plugin.TextCommand):
 
     def get_ext(self):
         '''
-        Extracts the extension from the filename.
+        Extracts the extension from the filename. Defaults to scss
         '''
+        if not self.is_saved():
+            return "scss"
+
         (basename, ext) = os.path.splitext(self.view.file_name())
         return ext.strip('.')
 
@@ -292,6 +290,12 @@ class SassBeautifyCommand(sublime_plugin.TextCommand):
         if self.action == 'beautify' and filetype == 'css':
             filetype = 'scss'
         return filetype
+
+    def is_saved(self):
+        '''
+        Returns true if file is saved
+        '''
+        return bool(self.view.file_name())
 
     def get_text(self):
 
@@ -318,12 +322,14 @@ class SassBeautifyCommand(sublime_plugin.TextCommand):
 
         # We have to store the state to prevent us getting in an infinite loop
         # when beautifying on_post_save.
-        SassBeautifyCommand.saving = True
-        self.view.run_command('save')
-        SassBeautifyCommand.saving = False
+        if self.is_saved():
+            SassBeautifyCommand.saving = True
+            self.view.run_command('save')
+            SassBeautifyCommand.saving = False
 
         self.view.set_viewport_position(self.viewport_pos, False)
         self.view.sel().clear()
         self.view.sel().add(self.selection)
 
-        sublime.status_message('Successfully beautified ' + self.view.file_name())
+        filename = self.view.file_name() if self.view.file_name() else 'file'
+        sublime.status_message('Successfully beautified ' + filename)
